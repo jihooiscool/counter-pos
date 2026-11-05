@@ -22,7 +22,9 @@ python3 -m http.server 5178
 - `profiles` — `{id, name, settings:{lang, currency, fontScale, tileSize, keepAwake}}`
 - `menu` — `{id, profileId, number, name, price, desc, emoji, image(dataURL), color, active}`
 - `orders` — `{id, profileId, createdAt, items:[{menuId, number, name, price, qty}], total, method, voided}`
-- `kv` — `activeProfile`, `lastView`, `cart:<profileId>`, `draft:<profileId>` (작성 중인 메뉴)
+- `kv` — `activeProfile`, `lastView`, `cart:<profileId>`, `draft:<profileId>` (작성 중인 메뉴),
+  `prep:<profileId>` (준비 목록 `[{orderId, ticket, createdAt, items:[{name, qty, done}]}]`),
+  `ticket:<profileId>` (일일 주문 번호 `{day, n}` — 매일 #1부터)
 
 주문에는 판매 당시의 이름·가격이 복사되므로, 메뉴를 고치거나 지워도 과거 매출은 그대로입니다.
 

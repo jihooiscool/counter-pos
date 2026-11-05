@@ -2,7 +2,7 @@
 const dict = {
   ko: {
     appName: '카운터 계산기',
-    'nav.register': '계산', 'nav.menu': '메뉴', 'nav.sales': '매출', 'nav.settings': '설정',
+    'nav.register': '계산', 'nav.prep': '준비', 'nav.menu': '메뉴', 'nav.sales': '매출', 'nav.settings': '설정',
     'font.smaller': '글자 작게', 'font.bigger': '글자 크게',
     'wake.on': '화면 켜짐 유지 중',
 
@@ -21,7 +21,13 @@ const dict = {
     'pay.other': '기타', 'pay.received': '받은 돈', 'pay.change': '거스름돈',
     'pay.short': '{amount} 부족', 'pay.exact': '딱 맞게', 'pay.reset': '다시',
     'pay.done': '결제 완료', 'pay.back': '뒤로',
-    'sale.done': '판매 완료 · {amount}', 'sale.undo': '되돌리기', 'sale.undone': '판매를 취소했습니다',
+    'sale.done': '판매 완료 · #{ticket} · {amount}', 'sale.undo': '되돌리기', 'sale.undone': '판매를 취소했습니다',
+
+    'prep.title': '준비 중인 주문', 'prep.empty': '준비할 주문이 없습니다',
+    'prep.done': '준비 완료 · 목록에서 빼기', 'prep.remove': '목록에서 빼기',
+    'prep.removeConfirm': '아직 다 준비되지 않았습니다.\n#{ticket} 주문을 목록에서 뺄까요?\n(매출 기록은 그대로 남습니다)',
+    'prep.removed': '#{ticket} 주문을 목록에서 뺐습니다',
+    'prep.justNow': '방금', 'prep.ago': '{n}분 전',
 
     'menu.title': '메뉴 관리', 'menu.add': '메뉴 추가', 'menu.edit': '메뉴 수정',
     'menu.number': '번호', 'menu.name': '이름', 'menu.price': '가격', 'menu.desc': '짧은 설명',
@@ -55,6 +61,7 @@ const dict = {
     'set.keepAwake': '화면 꺼지지 않게', 'set.keepAwakeNote': '계산 중에 화면이 꺼지지 않습니다.',
     'set.keepAwakeUnsupported': '이 기기/브라우저는 화면 켜짐 유지를 지원하지 않습니다.',
     'set.fullscreen': '전체 화면으로 보기',
+    'set.prepList': '준비 목록 사용', 'set.prepListNote': '결제한 주문이 "준비" 탭에 올라가고, 메뉴별로 체크할 수 있습니다.',
     'set.profiles': '가게 프로필', 'set.profilesNote': '프로필마다 메뉴, 매출, 설정이 따로 저장됩니다.',
     'set.current': '사용 중', 'set.use': '사용', 'set.rename': '이름 변경', 'set.delete': '삭제',
     'set.addProfile': '새 가게 추가', 'set.newProfileName': '새 가게 이름',
@@ -76,7 +83,7 @@ const dict = {
   },
   en: {
     appName: 'Counter POS',
-    'nav.register': 'Register', 'nav.menu': 'Menu', 'nav.sales': 'Sales', 'nav.settings': 'Settings',
+    'nav.register': 'Register', 'nav.prep': 'Preparing', 'nav.menu': 'Menu', 'nav.sales': 'Sales', 'nav.settings': 'Settings',
     'font.smaller': 'Smaller text', 'font.bigger': 'Bigger text',
     'wake.on': 'Screen kept on',
 
@@ -95,7 +102,13 @@ const dict = {
     'pay.other': 'Other', 'pay.received': 'Received', 'pay.change': 'Change',
     'pay.short': '{amount} short', 'pay.exact': 'Exact', 'pay.reset': 'Reset',
     'pay.done': 'Complete sale', 'pay.back': 'Back',
-    'sale.done': 'Sale complete · {amount}', 'sale.undo': 'Undo', 'sale.undone': 'Sale undone',
+    'sale.done': 'Sale complete · #{ticket} · {amount}', 'sale.undo': 'Undo', 'sale.undone': 'Sale undone',
+
+    'prep.title': 'Orders in preparation', 'prep.empty': 'Nothing to prepare',
+    'prep.done': 'Ready · remove from list', 'prep.remove': 'Remove from list',
+    'prep.removeConfirm': 'This order is not fully prepared.\nRemove #{ticket} from the list?\n(Sales records are kept)',
+    'prep.removed': 'Removed #{ticket} from the list',
+    'prep.justNow': 'just now', 'prep.ago': '{n} min ago',
 
     'menu.title': 'Menu', 'menu.add': 'Add item', 'menu.edit': 'Edit item',
     'menu.number': 'No.', 'menu.name': 'Name', 'menu.price': 'Price', 'menu.desc': 'Short description',
@@ -129,6 +142,7 @@ const dict = {
     'set.keepAwake': 'Keep screen on', 'set.keepAwakeNote': 'The screen will not turn off while the app is open.',
     'set.keepAwakeUnsupported': 'This device/browser does not support keeping the screen on.',
     'set.fullscreen': 'Full screen',
+    'set.prepList': 'Use preparing list', 'set.prepListNote': 'Paid orders appear in the "Preparing" tab with a checklist per item.',
     'set.profiles': 'Store profiles', 'set.profilesNote': 'Each profile has its own menu, sales and settings.',
     'set.current': 'In use', 'set.use': 'Use', 'set.rename': 'Rename', 'set.delete': 'Delete',
     'set.addProfile': 'Add store', 'set.newProfileName': 'New store name',

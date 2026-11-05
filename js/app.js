@@ -19,16 +19,20 @@ const BILLS = {
   KRW: [1000, 5000, 10000, 50000], JPY: [100, 500, 1000, 5000, 10000],
   VND: [10000, 50000, 100000, 500000], default: [1, 5, 10, 20, 50, 100],
 };
-const NAV = [['register', '🧮'], ['menu', '📋'], ['sales', '📊'], ['settings', '⚙️']];
+const NAV = [['register', '🧮'], ['prep', '🍳'], ['menu', '📋'], ['sales', '📊'], ['settings', '⚙️']];
+const LATE_MIN = 15; // a preparing order waiting longer than this is highlighted
 
 const S = {
   profiles: [], profile: null, menu: [], cart: [],
+  prep: [], // [{ orderId, ticket, createdAt, items: [{ name, qty, done }] }], oldest first
+  ticket: { day: '', n: 0 }, // daily order number, restarts at #1 each day
   view: 'register', cartOpen: false,
   report: { mode: 'day', anchor: Date.now(), showAll: false },
   persisted: false,
 };
 const pid = () => S.profile.id;
 const cfg = () => S.profile.settings;
+const prepOn = () => cfg().prepList !== false; // profiles saved before this setting existed default to on
 
 function money(n, cur = cfg().currency) {
   if (cur === 'KRW' && getLang() === 'ko') return `${Math.round(n).toLocaleString('ko-KR')}원`;
@@ -47,6 +51,9 @@ const saveProfile = () => db.put('profiles', S.profile);
 const saveProfileSoon = debounce(saveProfile, 400);
 const cartKey = (id = pid()) => `cart:${id}`;
 const saveCart = () => db.put('kv', S.cart, cartKey());
+const prepKey = (id = pid()) => `prep:${id}`;
+const ticketKey = (id = pid()) => `ticket:${id}`;
+const savePrep = () => db.put('kv', S.prep, prepKey());
 
 function sortMenu() {
   S.menu.sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || a.name.localeCompare(b.name));
@@ -55,7 +62,7 @@ function sortMenu() {
 function makeProfile(name, settings) {
   return {
     id: uid(), name, createdAt: Date.now(),
-    settings: { lang: 'ko', currency: 'KRW', fontScale: 1.2, tileSize: 'md', keepAwake: true, ...settings },
+    settings: { lang: 'ko', currency: 'KRW', fontScale: 1.2, tileSize: 'md', keepAwake: true, prepList: true, ...settings },
   };
 }
 
@@ -83,6 +90,8 @@ async function loadProfile(p) {
   const cart = (await db.get('kv', cartKey(p.id))) || [];
   S.cart = cart.filter(l => S.menu.some(m => m.id === l.menuId));
   S.cartOpen = false;
+  S.prep = (await db.get('kv', prepKey(p.id))) || [];
+  S.ticket = (await db.get('kv', ticketKey(p.id))) || { day: '', n: 0 };
   await db.put('kv', p.id, 'activeProfile');
   wake.set(p.settings.keepAwake);
 }
@@ -94,6 +103,8 @@ function applyScale() {
 // ---------- shell ----------
 function render() {
   const big = getLang() === 'ko' ? '가' : 'A';
+  if (S.view === 'prep' && !prepOn()) S.view = 'register';
+  const nav = NAV.filter(([v]) => v !== 'prep' || prepOn());
   $('#app').innerHTML = `
     <header class="topbar">
       <button class="store-btn" data-action="profiles"><span>🏪</span><span class="store-name">${esc(S.profile.name)}</span><span class="caret">▾</span></button>
@@ -103,17 +114,25 @@ function render() {
         <button data-action="font" data-d="1" aria-label="${t('font.bigger')}">${big}<small>+</small></button>
       </div>
     </header>
-    <nav class="tabs">${NAV.map(([v, ico]) => `
-      <button data-action="nav" data-view="${v}" class="${S.view === v ? 'on' : ''}"><span class="ico">${ico}</span><span>${t(`nav.${v}`)}</span></button>`).join('')}
+    <nav class="tabs">${nav.map(([v, ico]) => `
+      <button data-action="nav" data-view="${v}" class="${S.view === v ? 'on' : ''}"><span class="ico">${ico}</span><span>${t(`nav.${v}`)}</span>${v === 'prep' ? '<span class="tab-badge" data-prep-badge hidden></span>' : ''}</button>`).join('')}
     </nav>
     <main id="view" class="view-${S.view}"></main>`;
   document.title = t('appName');
+  updatePrepBadge();
   renderView();
 }
 
 function renderView() {
   const el = $('#view');
-  ({ register: renderRegister, menu: renderMenu, sales: renderSales, settings: renderSettings })[S.view](el);
+  ({ register: renderRegister, prep: renderPrep, menu: renderMenu, sales: renderSales, settings: renderSettings })[S.view](el);
+}
+
+function updatePrepBadge() {
+  const b = $('[data-prep-badge]');
+  if (!b) return;
+  b.hidden = !S.prep.length;
+  b.textContent = S.prep.length;
 }
 
 function go(view) {
@@ -284,29 +303,115 @@ function openPay() {
 async function completeSale(method, received) {
   const lines = cartLines();
   if (!lines.length) return;
+  const today = new Date().toLocaleDateString('sv');
+  const ticket = { day: today, n: S.ticket.day === today ? S.ticket.n + 1 : 1 };
   const order = {
-    id: uid(), profileId: pid(), createdAt: Date.now(), method, received, voided: false,
+    id: uid(), profileId: pid(), createdAt: Date.now(), method, received, voided: false, ticket: ticket.n,
     items: lines.map(l => ({ menuId: l.menuId, number: l.item.number ?? null, name: l.item.name, price: l.item.price, qty: l.qty })),
     total: cartTotal(),
   };
   const prevCart = S.cart;
-  const key = cartKey();
-  // Order + emptied cart commit together, so a crash can never double-count or lose a sale.
-  await db.batch([{ store: 'orders', value: order }, { store: 'kv', key, value: [] }]);
+  const key = cartKey(), pKey = prepKey();
+  const prep = prepOn()
+    ? [...S.prep, { orderId: order.id, ticket: ticket.n, createdAt: order.createdAt, items: order.items.map(i => ({ name: i.name, qty: i.qty, done: false })) }]
+    : S.prep;
+  // Order, emptied cart, preparing list and order number commit together,
+  // so a crash can never double-count, lose a sale, or drop it from the kitchen list.
+  await db.batch([
+    { store: 'orders', value: order },
+    { store: 'kv', key, value: [] },
+    { store: 'kv', key: pKey, value: prep },
+    { store: 'kv', key: ticketKey(), value: ticket },
+  ]);
   S.cart = [];
   S.cartOpen = false;
+  S.prep = prep;
+  S.ticket = ticket;
   closeModal();
   renderCart();
+  updatePrepBadge();
   navigator.vibrate?.(30);
-  toast(t('sale.done', { amount: money(order.total) }), {
+  toast(t('sale.done', { ticket: ticket.n, amount: money(order.total) }), {
     label: t('sale.undo'),
     fn: async () => {
-      await db.batch([{ store: 'orders', del: order.id }, { store: 'kv', key, value: prevCart }]);
-      if (S.profile.id === order.profileId) { S.cart = prevCart; renderCart(); }
-      if (S.view === 'sales') renderView();
+      const restPrep = ((await db.get('kv', pKey)) || []).filter(p => p.orderId !== order.id);
+      await db.batch([{ store: 'orders', del: order.id }, { store: 'kv', key, value: prevCart }, { store: 'kv', key: pKey, value: restPrep }]);
+      if (S.profile.id === order.profileId) {
+        S.cart = prevCart;
+        S.prep = restPrep;
+        renderCart();
+        updatePrepBadge();
+        if (S.view === 'prep' || S.view === 'sales') renderView();
+      }
       toast(t('sale.undone'));
     },
   }, 8000);
+}
+
+// ---------- preparing list ----------
+function minutesAgo(ts) {
+  const n = Math.floor((Date.now() - ts) / 60000);
+  return n < 1 ? t('prep.justNow') : t('prep.ago', { n });
+}
+
+function renderPrep(el) {
+  el.innerHTML = `
+    <div class="page prep-page">
+      <div class="page-head"><h1>${t('prep.title')}</h1></div>
+      ${S.prep.length ? `<div class="prep-grid">${S.prep.map(p => {
+        const done = p.items.filter(i => i.done).length;
+        const ready = done === p.items.length;
+        const late = !ready && Date.now() - p.createdAt > LATE_MIN * 60000;
+        return `
+          <article class="prep-card${ready ? ' ready' : ''}${late ? ' late' : ''}">
+            <header>
+              <strong class="ticket">#${p.ticket}</strong>
+              <span class="prep-time">${fmtDate(new Date(p.createdAt), { hour: '2-digit', minute: '2-digit' })} · ${minutesAgo(p.createdAt)}</span>
+              <span class="prep-count">${done}/${p.items.length}</span>
+            </header>
+            <ul>${p.items.map((i, idx) => `
+              <li><button class="check${i.done ? ' on' : ''}" data-action="prep-check" data-id="${p.orderId}" data-i="${idx}" aria-pressed="${i.done}">
+                <span class="box">${i.done ? '✓' : ''}</span><span class="pi-name">${esc(i.name)}</span><span class="pi-qty">×${i.qty}</span>
+              </button></li>`).join('')}
+            </ul>
+            <footer>${ready
+              ? `<button class="btn pay" data-action="prep-finish" data-id="${p.orderId}">✓ ${t('prep.done')}</button>`
+              : `<button class="btn ghost danger small" data-action="prep-remove" data-id="${p.orderId}">${t('prep.remove')}</button>`}
+            </footer>
+          </article>`;
+      }).join('')}</div>` : `<p class="empty">✅ ${t('prep.empty')}</p>`}
+    </div>`;
+}
+
+async function togglePrepItem(id, idx) {
+  const p = S.prep.find(x => x.orderId === id);
+  if (!p) return;
+  p.items[idx].done = !p.items[idx].done;
+  renderView();
+  await savePrep();
+}
+
+async function removePrep(id, ask) {
+  const at = S.prep.findIndex(x => x.orderId === id);
+  if (at < 0) return;
+  const p = S.prep[at];
+  if (ask && !(await dialog({ message: t('prep.removeConfirm', { ticket: p.ticket }), ok: t('prep.remove'), danger: true }))) return;
+  S.prep = S.prep.filter(x => x !== p);
+  const profileId = pid();
+  await savePrep();
+  updatePrepBadge();
+  if (S.view === 'prep') renderView();
+  toast(t('prep.removed', { ticket: p.ticket }), {
+    label: t('sale.undo'),
+    fn: async () => {
+      if (pid() !== profileId) return;
+      S.prep = [...S.prep];
+      S.prep.splice(Math.min(at, S.prep.length), 0, p);
+      await savePrep();
+      updatePrepBadge();
+      if (S.view === 'prep') renderView();
+    },
+  }, 6000);
 }
 
 // ---------- menu ----------
@@ -587,7 +692,7 @@ async function renderSales(el) {
         <div class="card-head"><h2>${t('sales.orderList')}</h2><button class="btn ghost small" data-action="export-csv">⬇ ${t('sales.export')}</button></div>
         <ul class="orders">${listed.map(o => `
           <li class="${o.voided ? 'voided' : ''}">
-            <span class="o-time">${fmtDate(new Date(o.createdAt), timeOpts)}</span>
+            <span class="o-time">${o.ticket ? `<b>#${o.ticket}</b> ` : ''}${fmtDate(new Date(o.createdAt), timeOpts)}</span>
             <span class="o-items">${o.items.map(i => `${esc(i.name)}×${i.qty}`).join(', ')}</span>
             <span class="o-method">${o.method === 'cash' ? '💵' : '💳'}</span>
             <strong class="o-total">${money(o.total)}</strong>
@@ -605,7 +710,10 @@ async function voidOrder(id) {
   if (!o) return;
   o.voided = true;
   o.voidedAt = Date.now();
-  await db.put('orders', o);
+  const prep = S.prep.filter(p => p.orderId !== id);
+  await db.batch([{ store: 'orders', value: o }, { store: 'kv', key: prepKey(), value: prep }]);
+  S.prep = prep;
+  updatePrepBadge();
   renderView();
 }
 
@@ -657,6 +765,8 @@ function renderSettings(el) {
           <div class="seg">${['sm', 'md', 'lg'].map(s => `<button data-action="set-tile" data-size="${s}" class="${c.tileSize === s ? 'on' : ''}">${t(`set.tile.${s}`)}</button>`).join('')}</div></div>
         <label class="switch"><input type="checkbox" data-set="keepAwake" ${c.keepAwake ? 'checked' : ''} ${wake.supported ? '' : 'disabled'}><span class="knob"></span><span>☀︎ ${t('set.keepAwake')}</span></label>
         <p class="note">${wake.supported ? t('set.keepAwakeNote') : t('set.keepAwakeUnsupported')}</p>
+        <label class="switch"><input type="checkbox" data-set="prepList" ${prepOn() ? 'checked' : ''}><span class="knob"></span><span>🍳 ${t('set.prepList')}</span></label>
+        <p class="note">${t('set.prepListNote')}</p>
         ${document.fullscreenEnabled ? `<button class="btn ghost" data-action="fullscreen">⛶ ${t('set.fullscreen')}</button>` : ''}
       </section>
 
@@ -732,7 +842,10 @@ async function deleteProfile(id) {
   const orders = await db.byIndex('orders', 'profileTime', IDBKeyRange.bound([id, 0], [id, Infinity]));
   await db.delMany('menu', menu.map(m => m.id));
   await db.delMany('orders', orders.map(o => o.id));
-  await db.batch([{ store: 'profiles', del: id }, { store: 'kv', del: cartKey(id) }, { store: 'kv', del: `draft:${id}` }]);
+  await db.batch([
+    { store: 'profiles', del: id }, { store: 'kv', del: cartKey(id) }, { store: 'kv', del: `draft:${id}` },
+    { store: 'kv', del: prepKey(id) }, { store: 'kv', del: ticketKey(id) },
+  ]);
   S.profiles = S.profiles.filter(x => x.id !== id);
   if (id === pid()) await loadProfile(S.profiles[0]);
   render();
@@ -870,6 +983,9 @@ const actions = {
   },
   pay: openPay,
   numpad: openNumpad,
+  'prep-check': el => togglePrepItem(el.dataset.id, +el.dataset.i),
+  'prep-finish': el => removePrep(el.dataset.id, false),
+  'prep-remove': el => removePrep(el.dataset.id, true),
   'menu-new': () => openEditor({}),
   'menu-edit': el => openEditor(S.menu.find(m => m.id === el.dataset.id)),
   'report-mode': el => { S.report.mode = el.dataset.mode; S.report.showAll = false; renderView(); },
@@ -907,9 +1023,14 @@ function bindEvents() {
     const k = e.target.dataset.set;
     if (k === 'currency') { cfg().currency = e.target.value; await saveProfile(); }
     if (k === 'keepAwake') { cfg().keepAwake = e.target.checked; await saveProfile(); await wake.set(cfg().keepAwake); }
+    if (k === 'prepList') { cfg().prepList = e.target.checked; await saveProfile(); render(); }
     if (k === 'import' && e.target.files[0]) { await importBackup(e.target.files[0]); e.target.value = ''; }
   });
   wake.onChange(() => { const w = $('.wake-ind'); if (w) w.hidden = !wake.active; });
+  // Keep the "n min ago" labels and late highlighting current, without disturbing open dialogs.
+  setInterval(() => {
+    if (S.view === 'prep' && !modalState && !$('#dialog-root').children.length) renderView();
+  }, 30000);
   window.addEventListener('error', e => { console.error(e.error || e); toast(t('error.generic')); });
   window.addEventListener('unhandledrejection', e => { console.error(e.reason); toast(t('error.generic')); });
 }

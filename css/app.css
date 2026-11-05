@@ -38,29 +38,10 @@ h2 { font-size: 1.15rem; margin: 0 0 .75rem; }
 #app {
   display: grid; height: 100vh; height: 100dvh;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas: "top" "main" "nav";
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "main" "nav";
+  padding-top: env(safe-area-inset-top);
 }
-.topbar {
-  grid-area: top; display: flex; align-items: center; gap: .5rem;
-  padding: .4rem .75rem; padding-top: max(.4rem, env(safe-area-inset-top));
-  background: var(--ink); color: #fff;
-}
-.store-btn {
-  display: flex; align-items: center; gap: .4rem; min-height: 2.75rem; min-width: 0;
-  padding: .25rem .75rem; border: 0; border-radius: 10px; background: rgba(255,255,255,.12); color: #fff;
-  font-weight: 800; font-size: 1.05rem;
-}
-.store-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.caret { opacity: .7; font-size: .8em; }
-.wake-ind { color: #FFD45C; font-size: 1.2rem; }
-.font-ctl { margin-left: auto; display: flex; gap: .35rem; }
-.font-ctl button {
-  min-width: 3rem; min-height: 2.75rem; border: 0; border-radius: 10px;
-  background: #fff; color: var(--ink); font-weight: 800; font-size: 1.05rem;
-}
-.font-ctl small { font-size: .85em; margin-left: .1em; }
-
 .tabs {
   grid-area: nav; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
   background: var(--surface); border-top: 1px solid var(--line);
@@ -85,8 +66,8 @@ main { grid-area: main; overflow: auto; min-height: 0; }
 @media (min-width: 800px) {
   #app {
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas: "top top" "nav main";
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "nav main";
   }
   .tabs {
     grid-auto-flow: row; grid-auto-columns: auto; grid-auto-rows: min-content; align-content: start; gap: .25rem;
@@ -242,7 +223,7 @@ legend { font-weight: 700; color: var(--ink-2); padding: 0 .3rem; }
 .emoji-grid .on, .color-row .on { border-color: var(--primary) !important; box-shadow: 0 0 0 2px var(--primary-soft); }
 .color-row { display: flex; gap: .5rem; flex-wrap: wrap; }
 .color-row button { width: 3rem; height: 3rem; border-radius: 50%; border: 2px solid var(--line); }
-.switch { display: flex; align-items: center; gap: .75rem; cursor: pointer; }
+.switch { position: relative; display: flex; align-items: center; gap: .75rem; cursor: pointer; }
 .switch input { position: absolute; opacity: 0; pointer-events: none; }
 .switch .knob { width: 3.4rem; height: 2rem; border-radius: 999px; background: #C9C4B8; position: relative; flex: none; transition: background .15s; }
 .switch .knob::after { content: ""; position: absolute; top: .2rem; left: .2rem; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
@@ -295,6 +276,8 @@ legend { font-weight: 700; color: var(--ink-2); padding: 0 .3rem; }
 .cash-rows strong { font-size: 1.6rem; font-weight: 900; }
 .change-row strong { color: var(--pay); font-size: 2rem; }
 .change-row.bad strong { color: var(--danger); font-size: 1.4rem; }
+.recv-type { display: block; margin: 0 0 .75rem; font-weight: 700; color: var(--ink-2); }
+.recv-type input { display: block; width: 100%; margin-top: .3rem; min-height: 3.5rem; padding: .4rem .8rem; border: 2px solid var(--primary); border-radius: 12px; font-size: 1.6rem; font-weight: 900; text-align: right; background: var(--surface); }
 .bills { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: .5rem; }
 .btn.bill { background: #E9F5EC; color: var(--pay); border-color: #BFE2C8; min-height: 3.5rem; font-size: 1.1rem; }
 .btn.bill.ghost { background: var(--surface); color: var(--ink); border-color: var(--line); }
@@ -357,6 +340,7 @@ legend { font-weight: 700; color: var(--ink-2); padding: 0 .3rem; }
 .o-time { color: var(--muted); font-weight: 700; font-size: .9rem; white-space: nowrap; }
 .o-items { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .o-total { white-space: nowrap; }
+.o-method { color: var(--muted); font-size: .85rem; font-weight: 700; white-space: nowrap; }
 .orders .voided { opacity: .55; }
 .orders .voided .o-total, .orders .voided .o-items { text-decoration: line-through; }
 @media (max-width: 560px) {

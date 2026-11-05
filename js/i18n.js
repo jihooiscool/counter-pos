@@ -19,7 +19,7 @@ const dict = {
 
     'pay.title': '결제', 'pay.total': '받을 금액', 'pay.card': '카드', 'pay.cash': '현금',
     'pay.other': '기타', 'pay.received': '받은 돈', 'pay.change': '거스름돈',
-    'pay.short': '{amount} 부족', 'pay.exact': '딱 맞게', 'pay.reset': '다시',
+    'pay.short': '{amount} 부족', 'pay.exact': '딱 맞게', 'pay.reset': '다시', 'pay.type': '직접 입력', 'pay.typeLabel': '받은 금액 입력',
     'pay.done': '결제 완료', 'pay.back': '뒤로',
     'sale.done': '판매 완료 · #{ticket} · {amount}', 'sale.undo': '되돌리기', 'sale.undone': '판매를 취소했습니다',
 
@@ -100,7 +100,7 @@ const dict = {
 
     'pay.title': 'Payment', 'pay.total': 'Amount due', 'pay.card': 'Card', 'pay.cash': 'Cash',
     'pay.other': 'Other', 'pay.received': 'Received', 'pay.change': 'Change',
-    'pay.short': '{amount} short', 'pay.exact': 'Exact', 'pay.reset': 'Reset',
+    'pay.short': '{amount} short', 'pay.exact': 'Exact', 'pay.reset': 'Reset', 'pay.type': 'Type amount', 'pay.typeLabel': 'Amount received',
     'pay.done': 'Complete sale', 'pay.back': 'Back',
     'sale.done': 'Sale complete · #{ticket} · {amount}', 'sale.undo': 'Undo', 'sale.undone': 'Sale undone',
 

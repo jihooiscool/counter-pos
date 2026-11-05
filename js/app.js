@@ -14,7 +14,7 @@ const EMOJIS = ['🍙', '🍜', '🍲', '🍛', '🍚', '🍱', '🥟', '🍢', 
   '🥪', '🌮', '🥗', '🍳', '🥞', '🧇', '🍞', '🥐', '🍩', '🍰', '🧁', '🍦', '🍧', '🍡', '☕', '🍵', '🧋', '🥤',
   '🍺', '🍶', '🧃', '🥛', '🍊', '🍽️'];
 const COLORS = ['#FFF1CC', '#FFE0DB', '#DDF2E0', '#DCE9FF', '#EEE2FF', '#FFFFFF'];
-const CURRENCIES = ['KRW', 'USD', 'EUR', 'JPY', 'CNY', 'GBP', 'CAD', 'AUD', 'VND', 'THB', 'PHP'];
+const CURRENCIES = ['KRW', 'USD', 'NZD', 'EUR', 'JPY', 'CNY', 'GBP', 'CAD', 'AUD', 'VND', 'THB', 'PHP'];
 const BILLS = {
   KRW: [1000, 5000, 10000, 50000], JPY: [100, 500, 1000, 5000, 10000],
   VND: [10000, 50000, 100000, 500000], default: [1, 5, 10, 20, 50, 100],
@@ -102,18 +102,9 @@ function applyScale() {
 
 // ---------- shell ----------
 function render() {
-  const big = getLang() === 'ko' ? '가' : 'A';
   if (S.view === 'prep' && !prepOn()) S.view = 'register';
   const nav = NAV.filter(([v]) => v !== 'prep' || prepOn());
   $('#app').innerHTML = `
-    <header class="topbar">
-      <button class="store-btn" data-action="profiles"><span>🏪</span><span class="store-name">${esc(S.profile.name)}</span><span class="caret">▾</span></button>
-      <span class="wake-ind" title="${t('wake.on')}" ${wake.active ? '' : 'hidden'}>☀︎</span>
-      <div class="font-ctl" role="group">
-        <button data-action="font" data-d="-1" aria-label="${t('font.smaller')}">${big}<small>−</small></button>
-        <button data-action="font" data-d="1" aria-label="${t('font.bigger')}">${big}<small>+</small></button>
-      </div>
-    </header>
     <nav class="tabs">${nav.map(([v, ico]) => `
       <button data-action="nav" data-view="${v}" class="${S.view === v ? 'on' : ''}"><span class="ico">${ico}</span><span>${t(`nav.${v}`)}</span>${v === 'prep' ? '<span class="tab-badge" data-prep-badge hidden></span>' : ''}</button>`).join('')}
     </nav>
@@ -151,7 +142,7 @@ function renderRegister(el) {
   el.innerHTML = `
     <section class="reg-main">
       ${items.length ? `
-        <div class="reg-toolbar"><button class="btn ghost" data-action="numpad">🔢 ${t('reg.byNumber')}</button></div>
+        <div class="reg-toolbar"><button class="btn ghost" data-action="numpad">${t('reg.byNumber')}</button></div>
         <div class="tiles tiles-${cfg().tileSize}">${items.map(m => `
           <button class="tile" data-action="add" data-id="${m.id}" style="--tile:${m.color || '#fff'}">
             ${m.number != null ? `<span class="tile-no">${m.number}</span>` : ''}
@@ -188,7 +179,7 @@ function renderCart() {
           <button data-action="inc" data-id="${l.menuId}" aria-label="${t('cart.add')}">+</button>
         </div>
         <div class="cl-sum">${money(l.item.price * l.qty)}</div>
-      </li>`).join('') : `<li class="cart-empty">👆 ${t('cart.empty')}</li>`}
+      </li>`).join('') : `<li class="cart-empty">${t('cart.empty')}</li>`}
     </ul>
     <div class="cart-foot">
       <div class="total-row"><span>${t('cart.total')}</span><strong class="total">${money(cartTotal())}</strong></div>
@@ -246,7 +237,7 @@ function openNumpad() {
     if (!f) return;
     changeQty(f.id, 1);
     buf = '';
-    show(`✓ ${f.name} +1`);
+    show(`${f.name} +1`);
   };
   m.addEventListener('click', e => {
     const k = e.target.closest('[data-k]');
@@ -274,11 +265,16 @@ function openPay() {
         <div><span>${t('pay.received')}</span><strong class="recv"></strong></div>
         <div class="change-row"><span class="change-label"></span><strong class="change"></strong></div>
       </div>
+      <label class="recv-type" hidden>${t('pay.typeLabel')}
+        <input type="text" inputmode="${cfg().currency === 'KRW' || cfg().currency === 'JPY' || cfg().currency === 'VND' ? 'numeric' : 'decimal'}" enterkeyhint="done" autocomplete="off" placeholder="0"></label>
       <div class="bills">${bills.map(b => `<button class="btn bill" data-b="${b}">+${money(b)}</button>`).join('')}
+        <button class="btn bill ghost" data-type>${t('pay.type')}</button>
         <button class="btn bill" data-exact>${t('pay.exact')}</button><button class="btn bill ghost" data-reset>${t('pay.reset')}</button></div>
       <div class="modal-actions"><button class="btn ghost" data-back>${t('pay.back')}</button><button class="btn pay cash-done">${t('pay.done')}</button></div>
     </div>`, { cls: 'pay-modal' });
-  const update = () => {
+  const typeBox = $('.recv-type', m), typeIn = $('.recv-type input', m);
+  const update = (fromInput = false) => {
+    if (!fromInput && !typeBox.hidden) typeIn.value = received ? String(received) : '';
     const diff = round2(received - total);
     $('.recv', m).textContent = money(received);
     const short = received > 0 && diff < 0;
@@ -292,12 +288,19 @@ function openPay() {
     if (!b) return;
     if (b.dataset.m === 'card') completeSale('card', null);
     else if (b.dataset.m === 'cash') { $('.pay-step1', m).hidden = true; $('.pay-cash', m).hidden = false; update(); }
+    else if ('type' in b.dataset) { typeBox.hidden = false; update(); typeIn.focus(); typeIn.select(); }
     else if (b.dataset.b) { received = round2(received + +b.dataset.b); update(); }
     else if ('exact' in b.dataset) { received = total; update(); }
     else if ('reset' in b.dataset) { received = 0; update(); }
     else if ('back' in b.dataset) { $('.pay-step1', m).hidden = false; $('.pay-cash', m).hidden = true; }
     else if (b.classList.contains('cash-done')) completeSale('cash', received || null);
   });
+  typeIn.addEventListener('input', () => {
+    const v = parseFloat(typeIn.value.replace(/[^\d.]/g, ''));
+    received = Number.isFinite(v) && v > 0 ? round2(v) : 0;
+    update(true);
+  });
+  typeIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); typeIn.blur(); } });
 }
 
 async function completeSale(method, received) {
@@ -449,7 +452,7 @@ function openEditor(src) {
         <div class="art-row">
           <div class="art-preview"></div>
           <div class="art-btns">
-            <label class="btn ghost">📷 ${t('menu.choosePhoto')}<input type="file" accept="image/*" name="photo" hidden></label>
+            <label class="btn ghost">${t('menu.choosePhoto')}<input type="file" accept="image/*" name="photo" hidden></label>
             <button type="button" class="btn ghost danger rm-photo">${t('menu.removePhoto')}</button>
           </div>
         </div>
@@ -461,7 +464,7 @@ function openEditor(src) {
       <label class="switch"><input type="checkbox" name="active" ${d.active !== false ? 'checked' : ''}><span class="knob"></span><span>${t('menu.onSale')}</span></label>
       <p class="form-err" hidden></p>
       <div class="modal-actions">
-        ${isNew ? '' : `<button type="button" class="btn ghost danger del">🗑 ${t('menu.delete')}</button>`}
+        ${isNew ? '' : `<button type="button" class="btn ghost danger del">${t('menu.delete')}</button>`}
         <span class="sp"></span>
         <button type="button" class="btn ghost" data-close>${t('menu.cancel')}</button>
         <button type="submit" class="btn primary">${t('menu.save')}</button>
@@ -668,7 +671,7 @@ async function renderSales(el) {
         <div class="stat hero"><span>${t('sales.revenue')}</span><strong>${money(revenue)}</strong></div>
         <div class="stat"><span>${t('sales.orders')}</span><strong>${orders.length.toLocaleString(locale())}</strong></div>
         <div class="stat"><span>${t('sales.avg')}</span><strong>${money(orders.length ? round2(revenue / orders.length) : 0)}</strong></div>
-        <div class="stat"><span>${t('sales.byMethod')}</span><div class="methods"><span>💳 ${money(byMethod.card)}</span><span>💵 ${money(byMethod.cash)}</span></div></div>
+        <div class="stat"><span>${t('sales.byMethod')}</span><div class="methods"><span>${t('pay.card')} ${money(byMethod.card)}</span><span>${t('pay.cash')} ${money(byMethod.cash)}</span></div></div>
       </div>
       ${orders.length ? `
       <section class="card">
@@ -694,7 +697,7 @@ async function renderSales(el) {
           <li class="${o.voided ? 'voided' : ''}">
             <span class="o-time">${o.ticket ? `<b>#${o.ticket}</b> ` : ''}${fmtDate(new Date(o.createdAt), timeOpts)}</span>
             <span class="o-items">${o.items.map(i => `${esc(i.name)}×${i.qty}`).join(', ')}</span>
-            <span class="o-method">${o.method === 'cash' ? '💵' : '💳'}</span>
+            <span class="o-method">${o.method === 'cash' ? t('pay.cash') : t('pay.card')}</span>
             <strong class="o-total">${money(o.total)}</strong>
             ${o.voided ? `<em class="badge">${t('sales.voided')}</em>` : `<button class="btn ghost danger small" data-action="void-order" data-id="${o.id}">${t('sales.void')}</button>`}
           </li>`).join('')}</ul>
@@ -744,14 +747,14 @@ function renderSettings(el) {
   el.innerHTML = `
     <div class="page settings">
       <section class="card">
-        <h2>🏪 ${t('set.store')}</h2>
+        <h2>${t('set.store')}</h2>
         <label>${t('set.storeName')}<input data-set="name" value="${esc(S.profile.name)}" autocomplete="off"></label>
         <label>${t('set.currency')}<select data-set="currency">${CURRENCIES.map(x => `<option ${x === c.currency ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
         <p class="note">${t('set.currencyNote')}</p>
       </section>
 
       <section class="card">
-        <h2>👀 ${t('set.display')}</h2>
+        <h2>${t('set.display')}</h2>
         <div class="field"><span>${t('set.lang')}</span>
           <div class="seg">${LANGS.map(l => `<button data-action="set-lang" data-lang="${l.code}" class="${l.code === c.lang ? 'on' : ''}">${l.label}</button>`).join('')}</div></div>
         <div class="field"><span>${t('set.fontSize')} <b class="scale-val">${Math.round(c.fontScale * 100)}%</b></span>
@@ -763,15 +766,15 @@ function renderSettings(el) {
           <p class="preview">${t('set.fontPreview')}</p></div>
         <div class="field"><span>${t('set.tileSize')}</span>
           <div class="seg">${['sm', 'md', 'lg'].map(s => `<button data-action="set-tile" data-size="${s}" class="${c.tileSize === s ? 'on' : ''}">${t(`set.tile.${s}`)}</button>`).join('')}</div></div>
-        <label class="switch"><input type="checkbox" data-set="keepAwake" ${c.keepAwake ? 'checked' : ''} ${wake.supported ? '' : 'disabled'}><span class="knob"></span><span>☀︎ ${t('set.keepAwake')}</span></label>
+        <label class="switch"><input type="checkbox" data-set="keepAwake" ${c.keepAwake ? 'checked' : ''} ${wake.supported ? '' : 'disabled'}><span class="knob"></span><span>${t('set.keepAwake')}</span></label>
         <p class="note">${wake.supported ? t('set.keepAwakeNote') : t('set.keepAwakeUnsupported')}</p>
-        <label class="switch"><input type="checkbox" data-set="prepList" ${prepOn() ? 'checked' : ''}><span class="knob"></span><span>🍳 ${t('set.prepList')}</span></label>
+        <label class="switch"><input type="checkbox" data-set="prepList" ${prepOn() ? 'checked' : ''}><span class="knob"></span><span>${t('set.prepList')}</span></label>
         <p class="note">${t('set.prepListNote')}</p>
-        ${document.fullscreenEnabled ? `<button class="btn ghost" data-action="fullscreen">⛶ ${t('set.fullscreen')}</button>` : ''}
+        ${document.fullscreenEnabled ? `<button class="btn ghost" data-action="fullscreen">${t('set.fullscreen')}</button>` : ''}
       </section>
 
       <section class="card">
-        <h2>🗂 ${t('set.profiles')}</h2>
+        <h2>${t('set.profiles')}</h2>
         <p class="note">${t('set.profilesNote')}</p>
         <ul class="profiles">${S.profiles.map(p => `
           <li class="${p.id === pid() ? 'cur' : ''}">
@@ -780,17 +783,17 @@ function renderSettings(el) {
             <button class="btn ghost small" data-action="profile-rename" data-id="${p.id}">${t('set.rename')}</button>
             <button class="btn ghost danger small" data-action="profile-delete" data-id="${p.id}">${t('set.delete')}</button>
           </li>`).join('')}</ul>
-        <button class="btn ghost wide" data-action="profile-add">＋ ${t('set.addProfile')}</button>
+        <button class="btn ghost wide" data-action="profile-add">${t('set.addProfile')}</button>
       </section>
 
       <section class="card">
-        <h2>💾 ${t('set.data')}</h2>
-        <p class="note">✅ ${t('set.autosave')}<br>${S.persisted ? t('set.persisted') : t('set.notPersisted')}</p>
+        <h2>${t('set.data')}</h2>
+        <p class="note">${t('set.autosave')}<br>${S.persisted ? t('set.persisted') : t('set.notPersisted')}</p>
         <div class="btn-row">
-          <button class="btn ghost" data-action="backup-export">⬇ ${t('set.export')}</button>
-          <label class="btn ghost">⬆ ${t('set.import')}<input type="file" accept="application/json,.json" data-set="import" hidden></label>
+          <button class="btn ghost" data-action="backup-export">${t('set.export')}</button>
+          <label class="btn ghost">${t('set.import')}<input type="file" accept="application/json,.json" data-set="import" hidden></label>
         </div>
-        <div class="field soon"><span>☁️ ${t('set.cloud')}</span><em class="badge">${t('set.cloudSoon')}</em></div>
+        <div class="field soon"><span>${t('set.cloud')}</span><em class="badge">${t('set.cloudSoon')}</em></div>
       </section>
     </div>`;
 }
@@ -855,8 +858,8 @@ function openProfilePicker() {
   const m = openModal(`
     <h2>${t('profile.title')}</h2>
     <div class="picker">${S.profiles.map(p => `
-      <button class="btn ${p.id === pid() ? 'primary' : 'ghost'} wide" data-id="${p.id}">🏪 ${esc(p.name)}</button>`).join('')}</div>
-    <div class="modal-actions"><button class="btn ghost add">＋ ${t('set.addProfile')}</button><span class="sp"></span><button class="btn ghost" data-close>${t('common.close')}</button></div>`);
+      <button class="btn ${p.id === pid() ? 'primary' : 'ghost'} wide" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+    <div class="modal-actions"><button class="btn ghost add">${t('set.addProfile')}</button><span class="sp"></span><button class="btn ghost" data-close>${t('common.close')}</button></div>`);
   m.addEventListener('click', e => {
     const b = e.target.closest('[data-id]');
     if (b) switchProfile(b.dataset.id);
@@ -1026,7 +1029,6 @@ function bindEvents() {
     if (k === 'prepList') { cfg().prepList = e.target.checked; await saveProfile(); render(); }
     if (k === 'import' && e.target.files[0]) { await importBackup(e.target.files[0]); e.target.value = ''; }
   });
-  wake.onChange(() => { const w = $('.wake-ind'); if (w) w.hidden = !wake.active; });
   // Keep the "n min ago" labels and late highlighting current, without disturbing open dialogs.
   setInterval(() => {
     if (S.view === 'prep' && !modalState && !$('#dialog-root').children.length) renderView();

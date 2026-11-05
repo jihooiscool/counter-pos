@@ -1,5 +1,5 @@
 // Offline support: network-first (so updates show up immediately), cache fallback when offline.
-const CACHE = 'counter-pos-v1';
+const CACHE = 'counter-pos-v3';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/db.js', 'js/i18n.js', 'js/chart.js', 'js/wake.js',
   'manifest.json', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
